@@ -145,7 +145,7 @@ if __name__ == '__main__':
     batch_size = 50
     n_hidden = 500
     learning_rate = 0.1
-    save_dir = 'data/mnist_images'
+    save_dir = 'mnist_images'
 
     # constants
     if 'MNIST_PATH' not in os.environ:

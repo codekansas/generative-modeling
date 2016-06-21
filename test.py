@@ -1,3 +1,5 @@
+""" theano two-layer network xor example, usually a good sanity check """
+
 from __future__ import print_function
 
 import theano

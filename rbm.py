@@ -1,3 +1,5 @@
+""" run this script to train an rbm on the mnist dataset (the canonical example) """
+
 from __future__ import print_function
 
 from pylearn2.utils.image import tile_raster_images
@@ -145,11 +147,12 @@ if __name__ == '__main__':
     batch_size = 50
     n_hidden = 500
     learning_rate = 0.1
-    save_dir = 'mnist_images'
+    save_dir = 'mnist'
 
     # constants
     if 'MNIST_PATH' not in os.environ:
-        print('Set MNIST_PATH as a path variable. Can download MNIST data from http://deeplearning.net/data/mnist/mnist.pkl.gz')
+        print('You must set MNIST_PATH as an environment variable (pointing at mnist.pkl.gz). You can download the' +
+              'MNIST data from http://deeplearning.net/data/mnist/mnist.pkl.gz')
         sys.exit(1)
     mnist_path = os.environ['MNIST_PATH']
 

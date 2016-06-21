@@ -151,7 +151,7 @@ if __name__ == '__main__':
 
     # constants
     if 'MNIST_PATH' not in os.environ:
-        print('You must set MNIST_PATH as an environment variable (pointing at mnist.pkl.gz). You can download the' +
+        print('You must set MNIST_PATH as an environment variable (pointing at mnist.pkl.gz). You can download the ' +
               'MNIST data from http://deeplearning.net/data/mnist/mnist.pkl.gz')
         sys.exit(1)
     mnist_path = os.environ['MNIST_PATH']
@@ -201,7 +201,7 @@ if __name__ == '__main__':
             frac = (n_train_batches - batch_index) * 10 / n_train_batches
             print('\r[' + '=' * (10 - frac) + '>' + ' ' * frac + ']', end='')
         stop_time = timeit.default_timer()
-        pretrain_time += (start_time - stop_time)
+        pretrain_time += (stop_time - start_time)
 
         print(' :: Training epoch %d, took %f seconds, cost is' % (epoch, stop_time - start_time), np.mean(mean_cost))
 

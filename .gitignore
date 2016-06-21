@@ -3,3 +3,6 @@
 # ignore large data files
 data/
 
+# ignore ide configuration
+.idea/
+

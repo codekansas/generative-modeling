@@ -193,14 +193,10 @@ if __name__ == '__main__':
     for epoch in range(training_epochs):
         start_time = timeit.default_timer()
         mean_cost = list()
-
         for batch_index in range(n_train_batches):
             mean_cost.append(train_rbm(batch_index))
-
-            # progress bar
             frac = (n_train_batches - batch_index) * 10 / n_train_batches
-            print('\r[' + '=' * (9 - frac) + '>' + ' ' * frac + ']', end='')
-
+            print('\r[' + '=' * (10 - frac) + '>' + ' ' * frac + ']', end='')
         stop_time = timeit.default_timer()
         pretrain_time += (start_time - stop_time)
 

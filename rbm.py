@@ -109,7 +109,10 @@ class RBM:
                         n_steps=k,
                         name="gibbs_hvh")
         chain_end = nv_samples[-1]
+
+        # free energy should go down after sampling
         cost = T.mean(self.free_energy(self.input)) - T.mean(self.free_energy(chain_end))
+
         for param in self.params:
             gparam = T.grad(cost, param, consider_constant=[chain_end])
             updates[param] = param - gparam * T.cast(lr, dtype=theano.config.floatX)

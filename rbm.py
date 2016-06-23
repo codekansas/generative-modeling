@@ -40,7 +40,7 @@ def get_zeros(name, *shape):
     return theano.shared(name=name, value=value, borrow=True)
 
 
-class RBM:
+class RBM(object):
     def __init__(self, n_visible, n_hidden, input):
         self.n_visible = n_visible
         self.n_hidden = n_hidden
@@ -58,7 +58,7 @@ class RBM:
         hidden_term = T.sum(T.log(1 + T.exp(wx_b)), axis=1)
         return -hidden_term - vbias_term
 
-    def propup(self, vis):
+    def propup(self, vis): # p(h = 1 | x)
         pre_sigmoid_activation = T.dot(vis, self.W) + self.hbias
         return [pre_sigmoid_activation, activation(pre_sigmoid_activation)]
 
@@ -67,7 +67,7 @@ class RBM:
         h1_sample = trng.binomial(size=h1_mean.shape, n=1, p=h1_mean, dtype=theano.config.floatX)
         return [pre_sigmoid_h1, h1_mean, h1_sample]
 
-    def propdown(self, hid):
+    def propdown(self, hid): # p(x = 1 | h)
         pre_sigmoid_activation = T.dot(hid, self.W.T) + self.vbias
         return [pre_sigmoid_activation, activation(pre_sigmoid_activation)]
 
@@ -110,7 +110,7 @@ class RBM:
                         name="gibbs_hvh")
         chain_end = nv_samples[-1]
 
-        # free energy should go down after sampling
+        # free energy should go down for the input and up for the Gibbs sample
         cost = T.mean(self.free_energy(self.input)) - T.mean(self.free_energy(chain_end))
 
         for param in self.params:
@@ -140,19 +140,8 @@ class RBM:
                                      (1 - self.input) * T.log(1 - activation(pre_sigmoid_nv)), axis=1))
         return cross_entropy
 
-if __name__ == '__main__':
-
-    # params
-    plot_every = 1000
-    n_samples = 10
-    n_chains = 10
-    training_epochs = 15
-    batch_size = 50
-    n_hidden = 500
-    learning_rate = 0.1
-    save_dir = 'mnist'
-
-    # constants
+def evaluate_rbm_mnist(rbm_model, plot_every=1000, n_samples=10, n_chains=10, training_epochs=15, batch_size=50,
+                       n_hidden=500, learning_rate=0.1, save_dir='mnist'):
     if 'MNIST_PATH' not in os.environ:
         print('You must set MNIST_PATH as an environment variable (pointing at mnist.pkl.gz). You can download the ' +
               'MNIST data from http://deeplearning.net/data/mnist/mnist.pkl.gz')
@@ -177,14 +166,12 @@ if __name__ == '__main__':
     x = T.matrix('x')
 
     persistent_chain = theano.shared(np.zeros((batch_size, n_hidden), dtype=theano.config.floatX), borrow=True)
-    rbm = RBM(input=x, n_visible=28*28, n_hidden=n_hidden)
+    rbm = rbm_model(input=x, n_visible=28*28, n_hidden=n_hidden)
     cost, updates = rbm.get_cost_updates(lr=learning_rate, persistent=persistent_chain, k=15)
 
     if not os.path.isdir(save_dir):
         os.makedirs(save_dir)
     os.chdir(save_dir)
-
-    slice = index * batch_size
 
     train_rbm = theano.function(inputs=[index],
                                 outputs=cost,
@@ -194,7 +181,6 @@ if __name__ == '__main__':
 
     plotting_time = 0.
     pretrain_time = 0.
-    start_time = timeit.default_timer()
 
     for epoch in range(training_epochs):
         start_time = timeit.default_timer()
@@ -248,3 +234,6 @@ if __name__ == '__main__':
 
     image = Image.fromarray(image_data)
     image.save('samples.png')
+
+if __name__ == '__main__':
+    evaluate_rbm_mnist(rbm_model=RBM)

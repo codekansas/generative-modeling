@@ -134,7 +134,7 @@ if __name__ == '__main__':
                                  givens={v: train_X[index*batch_size:(index+1)*batch_size]},
                                  name='train_rbm')
 
-    learning_rate = 0.1
+    learning_rate = 0.001
     for epoch in range(training_epochs):
         mean_cost = list()
         for batch_index in range(n_train_batches):

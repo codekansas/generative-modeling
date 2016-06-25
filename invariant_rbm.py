@@ -80,7 +80,7 @@ def build_rbm(n_vis, n_hid, n_rep, n_filt, k):
         repr = T.tensordot(v, R, axes=[1, 0])
         hidden_term = (T.log(1 + T.exp(T.tensordot(repr, W, axes=[2, 0]) + hbias)).sum(axis=2).mean(axis=1))
         vbias_term = T.dot(v, vbias)
-        return -out - vbias_term
+        return -hidden_term - vbias_term
 
     cost = T.mean(free_energy(v) - free_energy(v_sample))
 
@@ -88,25 +88,29 @@ def build_rbm(n_vis, n_hid, n_rep, n_filt, k):
         gparam = T.grad(cost=cost, wrt=param, consider_constant=[v_sample])
         updates[param] = param - gparam * lr
 
-    return v, lr, W, cost, updates, monitor, v_sample
+    return v, lr, W, R, cost, updates, monitor
 
 if __name__ == '__main__':
     n_vis = 28 * 28
-    n_hid = 100
-    n_rep = 100
-    n_filt = 100
+    n_hid = 500
+    n_rep = 20
+    n_filt = 10
     k = 5
     batch_size = 50
     training_epochs = 15
     save_dir = 'tirbm_mnist'
 
-    v, lr, W, cost, updates, monitor, v_sample = build_rbm(n_vis, n_hid, n_rep, n_filt, k)
+    v, lr, W, R, cost, updates, monitor = build_rbm(n_vis, n_hid, n_rep, n_filt, k)
 
     if 'MNIST_PATH' not in os.environ:
         print('You must set MNIST_PATH as an environment variable (pointing at mnist.pkl.gz). You can download the ' +
               'MNIST data from http://deeplearning.net/data/mnist/mnist.pkl.gz')
         sys.exit(1)
     mnist_path = os.environ['MNIST_PATH']
+
+    get_plt = theano.function(inputs=[], outputs=T.tensordot(R, W, axes=[2, 0]).max(axis=1).T)
+    image = Image.fromarray(tile_raster_images(X=get_plt(), img_shape=(28, 28), tile_shape=(10, 10), tile_spacing=(1, 1)))
+    image.save(os.path.join(save_dir, 'pre_filters.png'))
 
     f = gzip.open(mnist_path, 'rb')
     train_set, _, test_set = pkl.load(f)
@@ -130,15 +134,15 @@ if __name__ == '__main__':
                                  givens={v: train_X[index*batch_size:(index+1)*batch_size]},
                                  name='train_rbm')
 
-    learning_rate = 0.0001
+    learning_rate = 0.1
     for epoch in range(training_epochs):
         mean_cost = list()
         for batch_index in range(n_train_batches):
             cost = train_func(batch_index, learning_rate)
             mean_cost.append(cost)
             frac = (n_train_batches - batch_index) * 10 / n_train_batches
-            print('\r[' + '=' * (10 - frac) + '>' + ' ' * frac + '] :: Cost: %f' % cost, end='')
+            print('\r[' + '=' * (10 - frac) + '>' + ' ' * frac + '] :: (%d / %d) Cost: %f' % (batch_index, n_train_batches, cost), end='')
         print('\r[===========] :: Cost: %f' % (np.mean(mean_cost)))
 
-        image = Image.fromarray(tile_raster_images(X=W.get_value(borrow=True).T, img_shape=(10, 10), tile_shape=(10, 10), tile_spacing=(1, 1)))
+        image = Image.fromarray(tile_raster_images(X=get_plt(), img_shape=(28, 28), tile_shape=(10, 10), tile_spacing=(1, 1)))
         image.save(os.path.join(save_dir, 'filters_at_epoch_%i.png' % epoch))

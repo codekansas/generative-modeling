@@ -42,27 +42,50 @@ import numpy as np
 # print('Testing...')
 # print(test(X_data))
 
-rng = np.random.RandomState(42)
-trng = RandomStreams(rng.randint(2**30))
+# rng = np.random.RandomState(42)
+# trng = RandomStreams(rng.randint(2**30))
+#
+#
+# def build_rbm(v, W, bv, bh, k):
+#     def gibbs_step(v):
+#         mean_h = T.nnet.sigmoid(T.dot(v, W) + bh)
+#         h = trng.binomial(size=mean_h.shape, n=1, p=mean_h, dtype=theano.config.floatX)
+#         mean_v = T.nnet.sigmoid(T.dot(h, W.T) + bv)
+#         v = trng.binomial(size=mean_v.shape, n=1, p=mean_v, dtype=theano.config.floatX)
+#         return mean_v, v
+#
+#     chain, updates = theano.scan(lambda v: gibbs_step(v)[1], outputs_info=[v], n_steps=k)
+#     v_sample = chain[-1]
+#
+#     # instead of accuracy, monitor how much the gibbs step diverges
+#     # lower is better (stronger probability distribution)
+#     mean_v = gibbs_step(v_sample)[0]
+#     monitor = T.xlogx.xlogy0(v, mean_v) + T.xlogx.xlogy0(1 - v, 1 - mean_v)
+#     monitor = monitor.sum() / v.shape[0]
+#
+#     def free_energy(v):
+#         return -(v * bv).sum() - T.log(1 + T.exp(T.dot(v, W) + bh)).sum()
+#
+#     cost = (free_energy(v) - free_energy(v_sample)) / v.shape[0]
+#     return v_sample, cost, monitor, updates
 
+import numpy as np
 
-def build_rbm(v, W, bv, bh, k):
-    def gibbs_step(v):
-        mean_h = T.nnet.sigmoid(T.dot(v, W) + bh)
-        h = trng.binomial(size=mean_h.shape, n=1, p=mean_h, dtype=theano.config.floatX)
-        mean_v = T.nnet.sigmoid(T.dot(h, W.T) + bv)
-        v = trng.binomial(size=mean_v.shape, n=1, p=mean_v, dtype=theano.config.floatX)
-        return mean_v, v
+n_vis = 3
+n_hid = 4
+n_rep = 5
+n_filt = 7
+b_size = 11
 
-    chain, updates = theano.scan(lambda v: gibbs_step(v)[1], outputs_info=[v], n_steps=k)
-    v_sample = chain[-1]
+rnd = lambda *shape: np.random.uniform(size=shape)
 
-    mean_v = gibbs_step(v_sample)[0]
-    monitor = T.xlogx.xlogy0(v, mean_v) + T.xlogx.xlogy0(1 - v, 1 - mean_v)
-    monitor = monitor.sum() / v.shape[0]
+v = rnd(b_size, n_vis)
+R = rnd(n_vis, n_filt, n_rep)
+W = rnd(n_rep, n_hid)
+vbias = rnd(n_vis)
+hbias = rnd(n_filt, n_hid)
 
-    def free_energy(v):
-        return -(v * bv).sum() - T.log(1 + T.exp(T.dot(v, W) + bh)).sum()
-
-    cost = (free_energy(v) - free_energy(v_sample)) / v.shape[0]
-    return v_sample, cost, monitor, updates
+repr = np.tensordot(v, R, axes=[1, 0])
+out = np.tensordot(repr, W, axes=[2, 0]) + hbias
+vterm = (v * vbias).sum()
+print(vterm.shape)

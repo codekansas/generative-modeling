@@ -10,6 +10,11 @@ try:
 except ImportError:
     import Image
 
+try:
+    import cPickle as pkl
+except ImportError:
+    import pickle as pkl
+
 import numpy as np
 
 import theano
@@ -17,7 +22,6 @@ import theano.tensor as T
 import os
 import sys
 import gzip
-import cPickle as pkl
 import timeit
 
 # initialize random number generators
@@ -25,32 +29,32 @@ rng = np.random.RandomState(42)
 trng = RandomStreams(rng.randint(2**30))
 
 
-def activation(x):
-    return T.nnet.sigmoid(x)
-
-
-def get_weight(name, *shape, **kwargs):
-    magnitude = kwargs.get('magnitude', 1)
-    value = np.asarray(rng.uniform(low=-magnitude, high=magnitude, size=shape), dtype=theano.config.floatX)
-    return theano.shared(name=name, value=value, borrow=True)
-
-
-def get_zeros(name, *shape):
-    value = np.zeros(*shape, dtype=theano.config.floatX)
-    return theano.shared(name=name, value=value, borrow=True)
-
-
-class RBM(object):
+class RBM:
     def __init__(self, n_visible, n_hidden, input):
         self.n_visible = n_visible
         self.n_hidden = n_hidden
 
-        magnitude = 4 * np.sqrt(6. / (n_hidden + n_visible))
-        self.W = get_weight('W', n_visible, n_hidden, magnitude=magnitude)
-        self.hbias = get_zeros('hbias', n_hidden)
-        self.vbias = get_zeros('vbias', n_visible)
+        self.W = self.glorot_init('W', n_visible, n_hidden)
+        self.hbias = self.get_zeros('hbias', n_hidden)
+        self.vbias = self.get_zeros('vbias', n_visible)
         self.input = input
         self.params = [self.W, self.hbias, self.vbias]
+
+    def activation(self, x):
+        return T.nnet.sigmoid(x)
+
+    def glorot_init(self, name, *shape):
+        magnitude = 4 * np.sqrt(6. / sum(shape))
+        return self.get_weight(name, *shape, magnitude=magnitude)
+
+    def get_weight(self, name, *shape, **kwargs):
+        magnitude = kwargs.get('magnitude', 1)
+        value = np.asarray(rng.uniform(low=-magnitude, high=magnitude, size=shape), dtype=theano.config.floatX)
+        return theano.shared(name=name, value=value, borrow=True, strict=False)
+
+    def get_zeros(self, name, *shape):
+        value = np.zeros(*shape, dtype=theano.config.floatX)
+        return theano.shared(name=name, value=value, borrow=True, strict=False)
 
     def free_energy(self, v_sample):
         wx_b = T.dot(v_sample, self.W) + self.hbias
@@ -60,7 +64,7 @@ class RBM(object):
 
     def propup(self, vis): # p(h = 1 | x)
         pre_sigmoid_activation = T.dot(vis, self.W) + self.hbias
-        return [pre_sigmoid_activation, activation(pre_sigmoid_activation)]
+        return [pre_sigmoid_activation, self.activation(pre_sigmoid_activation)]
 
     def sample_h_given_v(self, v0_sample):
         pre_sigmoid_h1, h1_mean = self.propup(v0_sample)
@@ -69,7 +73,7 @@ class RBM(object):
 
     def propdown(self, hid): # p(x = 1 | h)
         pre_sigmoid_activation = T.dot(hid, self.W.T) + self.vbias
-        return [pre_sigmoid_activation, activation(pre_sigmoid_activation)]
+        return [pre_sigmoid_activation, self.activation(pre_sigmoid_activation)]
 
     def sample_v_given_h(self, h0_sample):
         pre_sigmoid_v1, v1_mean = self.propdown(h0_sample)
@@ -131,13 +135,13 @@ class RBM(object):
         fe_xi = self.free_energy(xi)
         xi_flip = T.set_subtensor(xi[:, bit_i_idx], 1 - xi[:, bit_i_idx])
         fe_xi_flip = self.free_energy(xi_flip)
-        cost = T.mean(self.n_visible * T.log(activation(fe_xi_flip - fe_xi)))
+        cost = T.mean(self.n_visible * T.log(self.activation(fe_xi_flip - fe_xi)))
         updates[bit_i_idx] = (bit_i_idx + 1) % self.n_visible
         return cost
 
     def get_reconstruction_cost(self, pre_sigmoid_nv):
-        cross_entropy = T.mean(T.sum(self.input * T.log(activation(pre_sigmoid_nv)) +
-                                     (1 - self.input) * T.log(1 - activation(pre_sigmoid_nv)), axis=1))
+        cross_entropy = T.mean(T.sum(self.input * T.log(self.activation(pre_sigmoid_nv)) +
+                                     (1 - self.input) * T.log(1 - self.activation(pre_sigmoid_nv)), axis=1))
         return cross_entropy
 
 def evaluate_rbm_mnist(rbm_model, plot_every=1000, n_samples=10, n_chains=10, training_epochs=15, batch_size=50,
@@ -186,13 +190,14 @@ def evaluate_rbm_mnist(rbm_model, plot_every=1000, n_samples=10, n_chains=10, tr
         start_time = timeit.default_timer()
         mean_cost = list()
         for batch_index in range(n_train_batches):
-            mean_cost.append(train_rbm(batch_index))
+            cost = train_rbm(batch_index)
+            mean_cost.append(cost)
             frac = (n_train_batches - batch_index) * 10 / n_train_batches
-            print('\r[' + '=' * (10 - frac) + '>' + ' ' * frac + ']', end='')
+            print('\r[' + '=' * (10 - frac) + '>' + ' ' * frac + '] :: Cost: %f' % cost, end='')
         stop_time = timeit.default_timer()
         pretrain_time += (stop_time - start_time)
 
-        print(' :: Training epoch %d, took %f seconds, cost is' % (epoch, stop_time - start_time), np.mean(mean_cost))
+        print('\r[===========] :: Training epoch %d, took %f seconds, cost is' % (epoch, stop_time - start_time), np.mean(mean_cost))
 
         plotting_start = timeit.default_timer()
         image = Image.fromarray(tile_raster_images(X=rbm.W.get_value(borrow=True).T, img_shape=(28, 28), tile_shape=(10, 10), tile_spacing=(1, 1)))

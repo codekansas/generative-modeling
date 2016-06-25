@@ -17,7 +17,10 @@ import os
 import sys
 import timeit
 
-import cPickle as pkl
+try:
+    import cPickle as pkl
+except ImportError:
+    import pickle as pkl
 
 rng = np.random.RandomState(42)
 trng = RandomStreams(rng.randint(2**30))

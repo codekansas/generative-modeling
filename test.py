@@ -7,6 +7,9 @@ import theano.tensor as T
 from theano.tensor.shared_randomstreams import RandomStreams
 import numpy as np
 
+rng = np.random.RandomState(42)
+trng = RandomStreams(rng.randint(2**30))
+
 # X = T.matrix(name='X', dtype=theano.config.floatX)
 # y = T.matrix(name='y', dtype=theano.config.floatX)
 # lr = T.scalar(name='lr', dtype=theano.config.floatX)
@@ -42,10 +45,6 @@ import numpy as np
 # print('Testing...')
 # print(test(X_data))
 
-# rng = np.random.RandomState(42)
-# trng = RandomStreams(rng.randint(2**30))
-#
-#
 # def build_rbm(v, W, bv, bh, k):
 #     def gibbs_step(v):
 #         mean_h = T.nnet.sigmoid(T.dot(v, W) + bh)
@@ -77,15 +76,31 @@ n_rep = 5
 n_filt = 7
 b_size = 11
 
-rnd = lambda *shape: np.random.uniform(size=shape)
+rnd = lambda *shape: np.random.uniform(high=10, size=shape)
 
 v = rnd(b_size, n_vis)
 R = rnd(n_vis, n_filt, n_rep)
 W = rnd(n_rep, n_hid)
 vbias = rnd(n_vis)
-hbias = rnd(n_filt, n_hid)
+hbias = theano.shared(name='hbias', value=rnd(13, n_filt, n_hid), strict=False)
+h = T.exp(hbias) / (1 + T.sum(T.exp(hbias), axis=2, keepdims=True))
 
-repr = np.tensordot(v, R, axes=[1, 0])
-out = np.tensordot(repr, W, axes=[2, 0]) + hbias
-vterm = (v * vbias).sum()
-print(vterm.shape)
+# def gibbs_step(v_in):
+#     h_inner = np.tensordot(v_in, R, axes=[1, 0])
+#     h_inner = np.tensordot(h_inner, W, axes=[2, 0]) + hbias
+#     mean_h = np.exp(h_inner) / (1 + np.sum(np.exp(h_inner), axis=1, keepdims=True))
+#     # h = np.random.binomial(size=mean_h.shape, n=1, p=mean_h)
+#     h = np.asarray(mean_h == np.max(mean_h, axis=2, keepdims=True), dtype='int32')
+#     rw = np.tensordot(R, W, axes=[2, 0])
+#     v_inner = np.tensordot(h, rw, axes=[[1, 2], [1, 2]]) + vbias
+#     mean_v = 1 / (1 + np.exp(-v_inner))
+#     v_out = np.random.binomial(size=mean_v.shape, n=1, p=mean_v)
+#     return mean_v, v_out
+
+output = trng.multinomial(pvals=h)
+
+f = theano.function([], h.sum(axis=2).max())
+print(f())
+
+g = theano.function([], output)
+print(g())

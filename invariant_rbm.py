@@ -30,15 +30,11 @@ sigm = lambda x: T.nnet.sigmoid(x)
 
 
 def zeros_init(name, *shape):
-    import theano
-
     value = np.zeros(shape=shape, dtype=theano.config.floatX)
     return theano.shared(name=name, value=value, borrow=True)
 
 
 def glorot_init(name, *shape):
-    import theano
-
     magnitude = 4 * np.sqrt(6. / sum(shape))
     value = np.asarray(rng.uniform(low=-magnitude, high=magnitude, size=shape), dtype=theano.config.floatX)
     return theano.shared(name=name, value=value, borrow=True)
@@ -49,7 +45,7 @@ def glorot_init(name, *shape):
 # there are n_filt filters
 # h = <n_hid, n_filt>
 
-def build_rbm(n_vis, n_hid, n_rep, n_filt):
+def build_rbm(n_vis, n_hid, n_rep, n_filt, n_batch):
     R = glorot_init('R', n_vis, n_filt, n_rep)
     W = glorot_init('W', n_rep, n_hid)
 
@@ -63,10 +59,8 @@ def build_rbm(n_vis, n_hid, n_rep, n_filt):
     def gibbs_step(v_in):
         h_inner = T.tensordot(v_in, R, axes=[1, 0])
         h_inner = T.tensordot(h_inner, W, axes=[2, 0]) + hbias
-        mean_h = T.exp(h_inner) / (1 + T.sum(T.exp(h_inner), axis=2, keepdims=True))
-
-        # slow, because you're calculating 500 multinomial distributions
-        h = trng.multinomial(pvals=mean_h, dtype=theano.config.floatX)
+        mean_h = T.exp(h_inner) / (1 + T.sum(T.exp(h_inner), axis=1, keepdims=True))
+        h = trng.multinomial(pvals=mean_h.transpose(0, 2, 1), dtype=theano.config.floatX).transpose(0, 2, 1)
         rw = T.tensordot(R, W, axes=[2, 0])
         mean_v = T.nnet.sigmoid(T.tensordot(h, rw, axes=[[1, 2], [1, 2]]) + vbias)
         v_out = trng.binomial(size=mean_v.shape, n=1, p=mean_v, dtype=theano.config.floatX)
@@ -81,29 +75,29 @@ def build_rbm(n_vis, n_hid, n_rep, n_filt):
 
     def free_energy(v):
         repr = T.tensordot(v, R, axes=[1, 0])
-        hidden_term = (T.log(1 + T.exp(T.tensordot(repr, W, axes=[2, 0]) + hbias)).sum(axis=2).mean(axis=1))
+        hidden_term = T.log(1 + T.exp(T.tensordot(repr, W, axes=[2, 0]) + hbias)).sum(axis=2).sum(axis=1)
         vbias_term = T.dot(v, vbias)
         return -hidden_term - vbias_term
 
-    cost = T.mean(free_energy(v) - free_energy(v_sample))
+    cost = T.mean(free_energy(v)) - T.mean(free_energy(v_sample))
 
     for param in [R, W, vbias, hbias]:
-        gparam = T.grad(cost=cost, wrt=param, consider_constant=[v, v_sample])
+        gparam = T.grad(cost=cost, wrt=param, consider_constant=[v_sample])
         updates[param] = param - gparam * lr
 
     return k, v, lr, W, R, cost, updates, monitor
 
 if __name__ == '__main__':
     n_vis = 28 * 28
-    n_hid = 100
-    n_rep = 101
-    n_filt = 102
-    k = 10
-    batch_size = 50
+    n_hid = 512
+    n_rep = 256
+    n_filt = 128
+    k = 50
+    batch_size = 10
     training_epochs = 15
     save_dir = 'tirbm_mnist'
 
-    k, v, lr, W, R, cost, updates, monitor = build_rbm(n_vis, n_hid, n_rep, n_filt)
+    k, v, lr, W, R, cost, updates, monitor = build_rbm(n_vis, n_hid, n_rep, n_filt, batch_size)
 
     if 'MNIST_PATH' not in os.environ:
         print('You must set MNIST_PATH as an environment variable (pointing at mnist.pkl.gz). You can download the ' +
@@ -137,15 +131,15 @@ if __name__ == '__main__':
                                  givens={v: train_X[index*batch_size:(index+1)*batch_size]},
                                  name='train_rbm')
 
-    learning_rate = 0.01
+    learning_rate = 0.00001
     for epoch in range(training_epochs):
         mean_cost = list()
         for batch_index in range(n_train_batches):
             frac = (n_train_batches - batch_index) * 10 / n_train_batches
-            cost = train_func(batch_index, learning_rate, epoch * 10 + frac + 1)
+            cost = train_func(batch_index, learning_rate, 8)
             mean_cost.append(cost)
             print('\r[' + '=' * (10 - frac) + '>' + ' ' * frac + '] :: (%d / %d) Cost: %f' % (batch_index, n_train_batches, cost), end='')
         print('\r[===========] :: Cost: %f' % (np.mean(mean_cost)))
 
         image = Image.fromarray(tile_raster_images(X=get_plt(), img_shape=(28, 28), tile_shape=(10, 10), tile_spacing=(1, 1)))
-        image.save(os.path.join(save_dir, 'filters_at_epoch_%i.png' % epoch))
+        image.save(os.path.join(save_dir, 'filters_at_epoch_%i_batch_%i.png' % (epoch, batch_index)))

@@ -82,8 +82,9 @@ v = rnd(b_size, n_vis)
 R = rnd(n_vis, n_filt, n_rep)
 W = rnd(n_rep, n_hid)
 vbias = rnd(n_vis)
-hbias = theano.shared(name='hbias', value=rnd(13, n_filt, n_hid), strict=False)
-h = T.exp(hbias) / (1 + T.sum(T.exp(hbias), axis=2, keepdims=True))
+hbias = rnd(n_filt, n_hid)
+# hbias = theano.shared(name='hbias', value=rnd(13, n_filt, n_hid), strict=False)
+# h = T.exp(hbias) / (1 + T.sum(T.exp(hbias), axis=1, keepdims=True))
 
 # def gibbs_step(v_in):
 #     h_inner = np.tensordot(v_in, R, axes=[1, 0])
@@ -97,10 +98,14 @@ h = T.exp(hbias) / (1 + T.sum(T.exp(hbias), axis=2, keepdims=True))
 #     v_out = np.random.binomial(size=mean_v.shape, n=1, p=mean_v)
 #     return mean_v, v_out
 
-output = trng.multinomial(pvals=h)
+repr = np.tensordot(v, R, axes=[1, 0])
+hidden_term = np.log(1 + np.exp(np.tensordot(repr, W, axes=[2, 0]) + hbias))
+# vbias_term = np.dot(v, vbias)
 
-f = theano.function([], h.sum(axis=2).max())
-print(f())
+print(hidden_term.shape)
+# print(vbias_term.shape)
 
-g = theano.function([], output)
-print(g())
+# output = trng.multinomial(pvals=h.transpose(0, 2, 1)).transpose(0, 2, 1)
+#
+# g = theano.function([], output)
+# print(g())

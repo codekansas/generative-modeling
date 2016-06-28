@@ -86,7 +86,7 @@ def build_rbm(n_vis, n_hid, n_rep, n_filt, n_batch):
         gparam = T.grad(cost=cost, wrt=param, consider_constant=[v_sample])
         updates[param] = param - gparam * lr
 
-    return k, v, lr, W, R, cost, updates, monitor
+    return k, v, lr, W, R, cost, updates, monitor, gibbs_step
 
 if __name__ == '__main__':
     n_vis = 28 * 28
@@ -96,9 +96,12 @@ if __name__ == '__main__':
     k = 50
     batch_size = 10
     training_epochs = 15
+    n_chains = 10
+    plot_every = 10
+    n_samples = 1
     save_dir = 'tirbm_mnist'
 
-    k, v, lr, W, R, cost, updates, monitor = build_rbm(n_vis, n_hid, n_rep, n_filt, batch_size)
+    k, v, lr, W, R, cost, updates, monitor, gibbs_step = build_rbm(n_vis, n_hid, n_rep, n_filt, batch_size)
 
     if 'MNIST_PATH' not in os.environ:
         print('You must set MNIST_PATH as an environment variable (pointing at mnist.pkl.gz). You can download the ' +
@@ -132,8 +135,26 @@ if __name__ == '__main__':
                                  givens={v: train_X[index*batch_size:(index+1)*batch_size]},
                                  name='train_rbm')
 
+    def evaluate(i):
+        number_of_test_samples = test_X.get_value(borrow=True).shape[0]
+        test_idx = rng.randint(number_of_test_samples - n_chains)
+        persistent_vis_chain = theano.shared(np.asarray(test_X.get_value(borrow=True)[test_idx:test_idx+n_chains], dtype=theano.config.floatX))
+        ([vis_mfs,vis_samples],updates) = theano.scan(gibbs_step, outputs_info=[None, persistent_vis_chain], n_steps=plot_every, name='gibbs_vhv')
+        updates.update({ persistent_vis_chain: vis_samples[-1] })
+        sample_fn = theano.function(inputs=[], outputs=[vis_mfs[-1], vis_samples[-1]], updates=updates, name='sample_fn')
+        image_data = np.zeros((29 * n_samples + 1, 29 * n_chains - 1), dtype='uint8')
+
+        for idx in range(n_samples):
+            vis_mf, vis_samples = sample_fn()
+            image_data[29*idx:29*idx+28, :] = tile_raster_images(X=vis_mf, img_shape=(28, 28), tile_shape=(1, n_chains), tile_spacing=(1, 1))
+
+        image = Image.fromarray(image_data)
+        image.save(os.path.join(save_dir, 'samples_%d.png' % i))
+
     learning_rate = 0.00001
     for epoch in range(training_epochs):
+        evaluate(epoch)
+
         mean_cost = list()
         start_time = datetime.datetime.now()
         for batch_index in range(n_train_batches):
@@ -143,5 +164,5 @@ if __name__ == '__main__':
             print('\r[' + '=' * (10 - frac) + '>' + ' ' * frac + '] :: (%d / %d) Cost: %f | Time: %s' % (batch_index, n_train_batches, cost, str(datetime.datetime.now() - start_time)), end='')
         print('\r[===========] :: Cost: %f' % (np.mean(mean_cost)))
 
-        image = Image.fromarray(tile_raster_images(X=get_plt(), img_shape=(28, 28), tile_shape=(10, 10), tile_spacing=(1, 1)))
-        image.save(os.path.join(save_dir, 'filters_at_epoch_%i_batch_%i.png' % (epoch, batch_index)))
+        # image = Image.fromarray(tile_raster_images(X=get_plt(), img_shape=(28, 28), tile_shape=(10, 10), tile_spacing=(1, 1)))
+        # image.save(os.path.join(save_dir, 'filters_at_epoch_%i.png' % epoch))

@@ -2,6 +2,7 @@
 
 # ignore large data files
 data/
+*.png
 
 # ignore ide configuration
 .idea/

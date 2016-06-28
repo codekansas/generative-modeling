@@ -92,26 +92,26 @@ if __name__ == '__main__':
     n_vis = 28 * 28
     n_hid = 512
     n_rep = 256
-    n_filt = 128
-    k = 50
-    batch_size = 10
+    n_filt = 10
+    batch_size = 50
     training_epochs = 15
     n_chains = 10
     plot_every = 10
     n_samples = 1
-    save_dir = 'tirbm_mnist'
 
     k, v, lr, W, R, cost, updates, monitor, gibbs_step = build_rbm(n_vis, n_hid, n_rep, n_filt, batch_size)
-
     if 'MNIST_PATH' not in os.environ:
         print('You must set MNIST_PATH as an environment variable (pointing at mnist.pkl.gz). You can download the ' +
               'MNIST data from http://deeplearning.net/data/mnist/mnist.pkl.gz')
         sys.exit(1)
     mnist_path = os.environ['MNIST_PATH']
+    image_path = os.path.join(os.environ['IMAGE_PATH'], 'mnist_tirbm')
 
-    get_plt = theano.function(inputs=[], outputs=T.tensordot(R, W, axes=[2, 0]).max(axis=1).T)
-    image = Image.fromarray(tile_raster_images(X=get_plt(), img_shape=(28, 28), tile_shape=(10, 10), tile_spacing=(1, 1)))
-    image.save(os.path.join(save_dir, 'pre_filters.png'))
+    if not os.path.exists(image_path):
+        os.makedirs(image_path)
+    os.chdir(image_path)
+
+    # get_plt = theano.function(inputs=[], outputs=T.tensordot(R, W, axes=[2, 0]).max(axis=1).T)
 
     f = gzip.open(mnist_path, 'rb')
     train_set, _, test_set = pkl.load(f)
@@ -149,20 +149,22 @@ if __name__ == '__main__':
             image_data[29*idx:29*idx+28, :] = tile_raster_images(X=vis_mf, img_shape=(28, 28), tile_shape=(1, n_chains), tile_spacing=(1, 1))
 
         image = Image.fromarray(image_data)
-        image.save(os.path.join(save_dir, 'samples_%d.png' % i))
+        image.save('samples_%d.png' % i)
 
     learning_rate = 0.00001
     for epoch in range(training_epochs):
-        evaluate(epoch)
-
         mean_cost = list()
         start_time = datetime.datetime.now()
         for batch_index in range(n_train_batches):
             frac = (n_train_batches - batch_index) * 10 / n_train_batches
-            cost = train_func(batch_index, learning_rate, 8)
+            cost = train_func(batch_index, learning_rate, 1)
             mean_cost.append(cost)
             print('\r[' + '=' * (10 - frac) + '>' + ' ' * frac + '] :: (%d / %d) Cost: %f | Time: %s' % (batch_index, n_train_batches, cost, str(datetime.datetime.now() - start_time)), end='')
-        print('\r[===========] :: Cost: %f' % (np.mean(mean_cost)))
+        print('\r[===========] :: Cost: %f | Time: %s' % (np.mean(mean_cost), str(datetime.datetime.now() - start_time)))
+
+        # note: right now every batch takes about 10 hours to run on a cpu (gross)
+
+        evaluate(epoch)
 
         # image = Image.fromarray(tile_raster_images(X=get_plt(), img_shape=(28, 28), tile_shape=(10, 10), tile_spacing=(1, 1)))
-        # image.save(os.path.join(save_dir, 'filters_at_epoch_%i.png' % epoch))
+        # image.save('filters_at_epoch_%i.png' % epoch)

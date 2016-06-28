@@ -145,7 +145,7 @@ class RBM:
         return cross_entropy
 
 def evaluate_rbm_mnist(rbm_model, plot_every=1000, n_samples=10, n_chains=10, training_epochs=15, batch_size=50,
-                       n_hidden=500, learning_rate=0.1, save_dir='mnist'):
+                       n_hidden=500, learning_rate=0.1, save_dir='mnist_normal'):
     if 'MNIST_PATH' not in os.environ:
         print('You must set MNIST_PATH as an environment variable (pointing at mnist.pkl.gz). You can download the ' +
               'MNIST data from http://deeplearning.net/data/mnist/mnist.pkl.gz')
@@ -173,9 +173,10 @@ def evaluate_rbm_mnist(rbm_model, plot_every=1000, n_samples=10, n_chains=10, tr
     rbm = rbm_model(input=x, n_visible=28*28, n_hidden=n_hidden)
     cost, updates = rbm.get_cost_updates(lr=learning_rate, persistent=persistent_chain, k=15)
 
-    if not os.path.isdir(save_dir):
-        os.makedirs(save_dir)
-    os.chdir(save_dir)
+    image_path = os.path.join(os.environ['IMAGE_PATH'], save_dir)
+    if not os.path.isdir(image_path):
+        os.makedirs(image_path)
+    os.chdir(image_path)
 
     train_rbm = theano.function(inputs=[index],
                                 outputs=cost,

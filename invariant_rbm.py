@@ -6,6 +6,7 @@ import numpy as np
 import sys
 import os
 import gzip
+import datetime
 
 try:
     import cPickle as pkl
@@ -134,11 +135,12 @@ if __name__ == '__main__':
     learning_rate = 0.00001
     for epoch in range(training_epochs):
         mean_cost = list()
+        start_time = datetime.datetime.now()
         for batch_index in range(n_train_batches):
             frac = (n_train_batches - batch_index) * 10 / n_train_batches
             cost = train_func(batch_index, learning_rate, 8)
             mean_cost.append(cost)
-            print('\r[' + '=' * (10 - frac) + '>' + ' ' * frac + '] :: (%d / %d) Cost: %f' % (batch_index, n_train_batches, cost), end='')
+            print('\r[' + '=' * (10 - frac) + '>' + ' ' * frac + '] :: (%d / %d) Cost: %f | Time: %s' % (batch_index, n_train_batches, cost, str(datetime.datetime.now() - start_time)), end='')
         print('\r[===========] :: Cost: %f' % (np.mean(mean_cost)))
 
         image = Image.fromarray(tile_raster_images(X=get_plt(), img_shape=(28, 28), tile_shape=(10, 10), tile_spacing=(1, 1)))

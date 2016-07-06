@@ -157,7 +157,7 @@ if __name__ == '__main__':
         start_time = datetime.datetime.now()
         for batch_index in range(n_train_batches):
             frac = (n_train_batches - batch_index) * 10 / n_train_batches
-            cost = train_func(batch_index, learning_rate, 1)
+            cost = train_func(batch_index, learning_rate, epoch * 10 + frac + 1)
             mean_cost.append(cost)
             print('\r[' + '=' * (10 - frac) + '>' + ' ' * frac + '] :: (%d / %d) Cost: %f | Time: %s' % (batch_index, n_train_batches, cost, str(datetime.datetime.now() - start_time)), end='')
         print('\r[===========] :: Cost: %f | Time: %s' % (np.mean(mean_cost), str(datetime.datetime.now() - start_time)))

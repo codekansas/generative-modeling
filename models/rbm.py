@@ -93,8 +93,8 @@ class RBM:
                 pre_sigmoid_v1, v1_mean, v1_sample]
 
     def get_cost_updates(self, lr=0.1, persistent=None, k=1):
-        pre_sigmoid_ph, ph_mean, ph_sample = self.sample_h_given_v(self.input)
         if persistent is None:
+            pre_sigmoid_ph, ph_mean, ph_sample = self.sample_h_given_v(self.input)
             chain_start = ph_sample
         else:
             chain_start = persistent

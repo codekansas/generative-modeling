@@ -1,6 +1,10 @@
+from __future__ import print_function
+
 import sys
 import os
 import gzip
+
+from utils.rbm_utils import rng
 
 try:
     import cPickle as pkl
@@ -9,9 +13,13 @@ except ImportError:
 
 import theano
 import numpy as np
-import theano.tensor as T
 
-from rbm_utils import rng, dtype
+try:
+    import PIL.Image as Image
+except ImportError:
+    import Image
+
+from pylearn2.utils.image import tile_raster_images
 
 
 def evaluate_mnist(model, **kwargs):
@@ -25,38 +33,66 @@ def evaluate_mnist(model, **kwargs):
         print('Set IMAGE_PATH as an environment variable (parent directory to save generaged images)')
     image_path = os.path.join(os.environ['IMAGE_PATH'], kwargs.get('save_dir', 'mnist'))
 
-    print('Loading MNIST files from [ %s ]' % mnist_path)
-    print('Saving files in [ %s ]' % image_path)
-
-    # Load parameters
-    batch_size = kwargs.get('batch_size', 20)
-    training_epochs = kwargs.get('training_epochs', 15)
-    n_chains = kwargs.get('n_chains', 10)
-    plot_every = kwargs.get('plot_every', 10)
-    n_samples = kwargs.get('n_samples', 1)
+    print('Loading MNIST files from "%s"' % mnist_path)
+    print('Saving files in "%s"' % image_path)
 
     if not os.path.exists(image_path):
         os.makedirs(image_path)
     os.chdir(image_path)
 
     f = gzip.open(mnist_path, 'rb')
-    train_set, _, test_set = pkl.load(f)
+    train_set, validation_set, test_set = pkl.load(f)
 
-    def split_shared(xy):
+    def split_data(xy):
         x, y = xy
-        x = theano.shared(np.asarray(x, dtype=theano.config.floatX))
-        y = theano.shared(np.asarray(y, dtype=theano.config.floatX))
-        return x, T.cast(y, 'int32')
+        x = np.asarray(x, dtype=theano.config.floatX)
+        y = np.asarray(y, dtype='int32')
+        return x, y
 
-    train_X, train_y = split_shared(train_set)
-    test_X, test_y = split_shared(test_set)
+    train_X, train_y = split_data(train_set)
+    validation_X, validation_y = split_data(validation_set)
+    test_X, test_y = split_data(test_set)
 
-    n_train_batches = train_X.get_value(borrow=True).shape[0] // batch_size
-    index = T.lscalar('index')
+    # hyperparameters
+    batch_size = 20
+    nb_epochs = 15
+    k = 15
+    lr = 0.1
+    use_momentum = True
+    momentum = 0.9
+    persistent = True
+
+    for epoch in range(nb_epochs):
+        model.train(train_X, nb_epochs=1, batch_size=batch_size, k=k, lr=lr, use_momentum=use_momentum,
+                    momentum=momentum, validation_data=validation_X[0:256], persistent=persistent)
+        image = Image.fromarray(tile_raster_images(X=model.W.get_value(borrow=True).T, img_shape=(28, 28),
+                                                   tile_shape=(10, 10), tile_spacing=(1, 1)))
+        image.save('filters_at_epoch_%i.png' % epoch)
+
+    # testing params
+    number_of_test_samples = test_X.shape[0]
+    n_chains = 10
+    n_samples = 10
+    n_steps = 1000
+
+    test_idx = rng.randint(number_of_test_samples - n_chains)
+    v_sample = test_X[test_idx:test_idx+n_chains]
+
+    sample_function = model.get_sampler(v_sample)
+    image_data = np.zeros((29 * n_samples + 1, 29 * n_chains - 1), dtype='uint8')
+
+    for idx in range(n_samples):
+        image_data[29 * idx: 29 * idx + 28, :] = tile_raster_images(X=v_sample, img_shape=(28, 28),
+                                                                    tile_shape=(1, n_chains), tile_spacing=(1, 1))
+        v_sample = sample_function(n_steps)
+
+    image = Image.fromarray(image_data)
+    image.save('samples.png')
 
 evaluation_methods = {
     'mnist': evaluate_mnist,
 }
+
 
 def evaluate(model, dataset, **kwargs):
     dataset = dataset.lower()
@@ -66,6 +102,3 @@ def evaluate(model, dataset, **kwargs):
     message = '| Evaluating model on "%s" with settings: %s |' % (dataset, str(kwargs))
     print('o' + '-' * (len(message) - 2) + 'o\n' + message + '\no' + '-' * (len(message) - 2) + 'o')
     evaluation_methods[dataset](model, **kwargs)
-
-if __name__ == '__main__':
-    evaluate('a', 'mnist')

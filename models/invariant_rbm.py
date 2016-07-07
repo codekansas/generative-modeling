@@ -1,16 +1,20 @@
 from __future__ import print_function
 
 from models.rbm import RBM
-from utils import init_glorot, init_zeros, sigm, trng, dtype
+from utils import init_glorot, init_zeros, sigm, trng, rng, dtype
 
+import theano
 import theano.tensor as T
+import numpy as np
+import math
 
 
 class InvariantRBM(RBM):
-    def __init__(self, n_hid, n_filt, n_rep):
+    """ Still needs some work """
+
+    def __init__(self, n_hid, n_filt):
         super(InvariantRBM, self).__init__(n_hid)
         self.n_filt = n_filt
-        self.n_rep = n_rep
 
     def free_energy(self, v_sample):
         repr = T.tensordot(v_sample, self.R, axes=[1, 0])
@@ -31,6 +35,7 @@ class InvariantRBM(RBM):
     def build(self, batch_size, n_vis):
         self.batch_size = batch_size
         self.n_vis = n_vis
+        self.n_rep = n_vis
 
         self.W = init_glorot(name='W', shape=(self.n_rep, self.n_hid))
         self.R = init_glorot(name='R', shape=(self.n_vis, self.n_filt, self.n_rep))
@@ -42,4 +47,4 @@ class InvariantRBM(RBM):
 
 if __name__ == '__main__':
     from utils import evaluate
-    evaluate(InvariantRBM(n_hid=500, n_filt=10, n_rep=50), 'mnist', save_dir='mnist_invariant')
+    evaluate(InvariantRBM(n_hid=500, n_filt=1600), 'mnist', save_dir='mnist_invariant')

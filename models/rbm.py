@@ -23,11 +23,11 @@ class RBM(object):
 
     def visible_to_hidden(self, v_sample):
         wx_b = T.dot(v_sample, self.W) + self.hbias
-        return sigm(wx_b)
+        return binomial(sigm(wx_b))
 
     def hidden_to_visible(self, h_sample):
         wx_b = T.dot(h_sample, self.W.T) + self.vbias
-        return binomial(sigm(wx_b))
+        return sigm(wx_b)
 
     def gibbs_step_hidden(self, h_sample):
         v_sample = self.hidden_to_visible(h_sample)
@@ -44,8 +44,8 @@ class RBM(object):
         self.n_vis = n_vis
 
         self.W = init_glorot(name='W', shape=(self.n_vis, self.n_hid))
-        self.hbias = init_zeros(name='hbias', shape=(self.n_hid,))
-        self.vbias = init_zeros(name='vbias', shape=(self.n_vis,))
+        self.hbias = init_zeros(name='hbias', shape=(self.n_hid,), offset=-4)
+        self.vbias = init_zeros(name='vbias', shape=(self.n_vis,), offset=-4)
         self.params = [self.W, self.hbias, self.vbias]
 
         self._built = True
@@ -77,9 +77,9 @@ class RBM(object):
                 gradient = T.grad(cost, param, consider_constant=[chain_end])
                 velocity = init_zeros('velocity_' + str(param.name), shape=param.get_value(borrow=True).shape)
                 update = param - T.cast(lr, dtype=dtype) * gradient
-                x = momentum * velocity + update
-                updates[velocity] = x - param
-                updates[param] = x
+                x = momentum * velocity + update - param
+                updates[velocity] = x
+                updates[param] = momentum * x + update
         else:
             for param in self.params:
                 gradient = T.grad(cost, param, consider_constant=[chain_end])
@@ -96,6 +96,7 @@ class RBM(object):
             momentum = 0.
 
         if not hasattr(self, 'train_func'):
+            # doing this allows us to change hyperparameters after creating the training function
             k_var = T.lscalar('k')
             lr_var = T.scalar('lr', dtype=dtype)
             mu_var = T.scalar('mu', dtype=dtype)
@@ -111,7 +112,7 @@ class RBM(object):
 
         cost_monitor = self.get_cost_monitor()
 
-        for epoch in range(nb_epochs):
+        for epoch in range(1, nb_epochs + 1):
             start_time = datetime.datetime.now()
 
             for batch in range(n_train_batches):
@@ -121,7 +122,7 @@ class RBM(object):
 
                 messages = list()
                 messages.append('[' + '=' * (n_grades - fraction - 1) + '>' + ' ' * fraction + ']')
-                # messages.append('Epoch: %d' % epoch)
+                messages.append('Epoch: %d / %d' % (epoch, nb_epochs))
                 messages.append('Time: %s' % str(datetime.datetime.now() - start_time))
                 # messages.append('Cost: %.3e' % -cost_monitor(batch_data))
                 messages.append('(%d / %d)' % (batch, n_train_batches))
@@ -129,7 +130,7 @@ class RBM(object):
 
             messages = list()
             messages.append('[' + '=' * n_grades + ']')
-            # messages.append('Epoch: %d' % epoch)
+            messages.append('Epoch: %d / %d' % (epoch, nb_epochs))
             messages.append('Time: %s' % str(datetime.datetime.now() - start_time))
 
             if validation_data is not None:
@@ -173,4 +174,4 @@ class RBM(object):
 
 if __name__ == '__main__':
     from utils import evaluate
-    evaluate(RBM(n_hid=500), 'mnist', save_dir='mnist_vanilla')
+    evaluate(RBM(n_hid=500), 'mnist', save_dir='picture_vanilla')
